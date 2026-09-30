@@ -33,12 +33,23 @@ CATEGORY_STYLE = {
 
 
 # ---------------------------------------------------------------- 데이터
+def _find(filename: str) -> Path:
+    """data 폴더 안 → 앱 폴더 바로 아래 순서로 파일을 찾아요.
+    (GitHub에 올릴 때 data 폴더가 빠져도 파일만 앱 옆에 있으면 동작)"""
+    for p in (BASE_DIR / "data" / filename, BASE_DIR / filename):
+        if p.exists():
+            return p
+    raise FileNotFoundError(
+        f"{filename} 을(를) 찾을 수 없어요. GitHub 저장소에 data/{filename} 이 올라갔는지 확인하세요."
+    )
+
+
 def load_temples() -> pd.DataFrame:
-    return pd.read_csv(BASE_DIR / "data" / "temples.csv").fillna("")
+    return pd.read_csv(_find("temples.csv")).fillna("")
 
 
 def load_courses() -> list:
-    with open(BASE_DIR / "data" / "courses.json", encoding="utf-8") as f:
+    with open(_find("courses.json"), encoding="utf-8") as f:
         return json.load(f)
 
 
