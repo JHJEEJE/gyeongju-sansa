@@ -10,8 +10,11 @@ gyeongju_sansa_app/
 ├─ make_qr.py        # 사찰별 QR 안내판 PNG 만들기
 ├─ requirements.txt  # 필요한 라이브러리 (배포할 때 자동 설치)
 ├─ data/
-│  ├─ temples.csv    # 사찰·유적 35곳 (위경도 + 이야기 + 영문 한 줄)
-│  └─ courses.json   # 순례 코스 9개 (학생 7 + 외국인 1 + 불자 1)
+│  ├─ temples.csv    # 사찰·유적 35곳 (위경도 + 이야기 + 영문 한 줄 + 대표 사진 주소)
+│  ├─ courses.json   # 순례 코스 9개 (학생 7 + 외국인 1 + 불자 1)
+│  ├─ details.json   # 큰 사찰 경내 볼거리 (불국사·석굴암·분황사 등 9곳, 관람 순서대로)
+│  ├─ photos.json    # 사찰별 사진 여러 장 (상세 화면 사진 줄)
+│  └─ routes.json    # 코스 구간별 실제 도보 거리(m)
 ├─ notebooks/
 │  └─ 01_사찰위치_전처리_colab.ipynb   # 위치 데이터 수집·변환 과정 (코랩)
 └─ qr_sample/        # QR 안내판 예시 (예시 주소라 배포 후 다시 만들어야 함)
@@ -44,10 +47,17 @@ QR 없이 발표할 때는 앱의 **스탬프 탭 → '발표·테스트용'** �
 | 하고 싶은 것 | 고칠 곳 |
 |---|---|
 | 사찰 추가·설명 수정 | `data/temples.csv` 한 줄 추가 (id는 영어 소문자) |
+| 사진 바꾸기·추가 | `temples.csv`의 `image_url`(대표 사진), `photos.json`(추가 사진)에 사진 주소 넣기 |
+| 경내 볼거리 추가 | `data/details.json` |
 | 코스 추가·순서 변경 | `data/courses.json` 의 `stops` 목록 |
 | 핀 색·그림 | `utils.py` 의 `CATEGORY_STYLE`, `_SYMBOLS` |
 | 걷는 속도·머무는 시간 | `utils.py` 의 `WALK_SPEED_KMH`, `STAY_MIN` |
 | 배경지도 종류 | `utils.py` 의 `base_map()` |
+
+## 실제 걷는 길 · 사진은 어떻게 나오나
+- 코스 지도의 굵은 선: 앱이 실행될 때 OSRM 도보 길찾기 서버(routing.openstreetmap.de, OpenStreetMap 길 데이터)에서 받아와요. 못 받으면 점선(직선)으로 표시돼요.
+- 사진: 국가유산청 국가유산 이미지 OpenAPI의 공식 사진을 서버가 받아 작게 줄여서 보여 줘요. 석장사지·캠퍼스는 공식 사진이 없어 그림 핀으로 나와요.
+- 둘 다 한 번 받으면 저장돼서 다음부터는 빨라요.
 
 ## 좌표 출처
 - 사찰·유적 좌표: 국가유산청 국가유산 OpenAPI (`longitude`, `latitude`, WGS84)
