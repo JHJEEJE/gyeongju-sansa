@@ -4,9 +4,10 @@
 화면 구성 (터치 3번 이내 원칙)
   ① 사찰 지도  : 그림 핀을 누르면(1번) 바로 아래에 사진 + 사찰 이야기
   ② 순례 코스  : 코스 탭(1) → '코스 보기'(2) → 실제 도보 경로 지도 + 사진 타임라인
-  ③ 스탬프    : QR로 인증한 사찰 모아 보기
-  QR 방문     : 사찰에 붙인 QR을 폰 카메라로 찍으면 ?temple=사찰ID 로 열려
-                앱 안에서 누를 것 없이 소개 + 스탬프가 바로 찍혀요.
+  ③ 사진      : 이용자들이 올린 사찰 사진을 모두가 같이 봐요
+  ④ 스탬프    : 닉네임으로 내 스탬프 모아 보기 (인증 사진 위에 빨간 도장)
+  QR 방문     : 사찰에 붙인 QR을 폰 카메라로 찍으면 ?temple=사찰ID 로 열리고,
+                그 자리에서 사진을 올리면 스탬프가 돼요.
 모바일: 한 손가락으로는 화면이 스크롤되고, 지도는 두 손가락으로 움직여요.
 """
 import json
@@ -14,6 +15,9 @@ import json
 import streamlit as st
 from streamlit_folium import st_folium
 
+from community import (
+    feed_view, inject_css, qr_maker, stamp_board_view, stamp_upload_section, user_hero_uri, visitor_photos,
+)
 from utils import (
     CAMPUS_ID, CATEGORY_STYLE, DIFF_LABEL,
     build_course_map, build_overview_map, course_stats, fmt_minutes, hero_src,
@@ -76,6 +80,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+inject_css()                                     # 사진 칸 · 도장 모양
+
 # ---------------------------------------------------------------- 데이터 준비
 temples = load_temples()
 T = temples.set_index("id", drop=False)          # T.loc["bunhwangsa"] 처럼 ID로 바로 찾기
@@ -92,7 +98,7 @@ ALL_IMAGES = tuple(temples["image_url"].tolist()
 with st.spinner("사진 불러오는 중…"):
     THUMB = thumbs(ALL_IMAGES, 240)
 
-VIEWS = ["🗺️ 사찰 지도", "🚶 순례 코스", "📿 스탬프"]
+VIEWS = ["🗺️ 지도", "🚶 코스", "📸 사진", "📿 스탬프"]
 
 
 # ---------------------------------------------------------------- 화면 이동 함수
@@ -178,7 +184,7 @@ def render_gallery(row):
 def render_temple_detail(row, show_courses: bool = True, show_hero: bool = True):
     """템플맵 상세 페이지처럼: 사진 · 이름(한자) · 종류 · 주소 · 문화유산 · 이야기 · 경내 볼거리 · 지도 3사 연결."""
     if show_hero:
-        src = hero_src(row["image_url"]) if row["image_url"] else None
+        src = hero_src(row["image_url"]) if row["image_url"] else user_hero_uri(row["id"])
         st.markdown(photo_html(src or THUMB.get(row["image_url"]), row["image_url"], row["category"],
                                height="210px"), unsafe_allow_html=True)
         if row["image_caption"]:
@@ -206,6 +212,9 @@ def render_temple_detail(row, show_courses: bool = True, show_hero: bool = True)
 
     render_inside(row["id"])
 
+    if show_hero:                       # 지도에서 연 상세 · QR 화면에서만 (코스 타임라인은 가볍게)
+        visitor_photos(row)
+
     links = "".join(
         f"<a class='maplink' href='{url}' target='_blank'>{label}</a>"
         for label, url in map_links(row).items()
@@ -224,64 +233,6 @@ def render_temple_detail(row, show_courses: bool = True, show_hero: bool = True)
                     f"{c['title']} — {c['subtitle']}", key=f"rel_{row['id']}_{c['id']}",
                     on_click=open_course, args=(c["id"],), use_container_width=True,
                 )
-
-
-# ---------------------------------------------------------------- 스탬프 (브라우저 저장소)
-# 로그인 없이, 폰 브라우저의 localStorage에 {사찰ID: 방문시각}을 저장해요.
-STAMP_KEY = "gj_sansa_stamps"
-
-
-def stamp_write(temple_id: str):
-    st.iframe(
-        f"""<script>
-        const k = "{STAMP_KEY}";
-        let s = {{}};
-        try {{ s = JSON.parse(localStorage.getItem(k) || "{{}}"); }} catch (e) {{}}
-        if (!s["{temple_id}"]) s["{temple_id}"] = new Date().toISOString();
-        localStorage.setItem(k, JSON.stringify(s));
-        </script>""",
-        height=1,
-    )
-
-
-def stamp_board():
-    items = [
-        {"id": r["id"], "name": short_name(r),
-         "on": pin_svg(r["category"], scale=0.9), "off": pin_svg(r["category"], scale=0.9, grey=True)}
-        for _, r in STAMP_TARGETS.iterrows()
-    ]
-    rows = (len(items) + 2) // 3
-    st.iframe(
-        f"""
-        <div id="head" style="font-family:sans-serif;margin:4px 0 10px;font-size:15px"></div>
-        <div id="grid" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;font-family:sans-serif"></div>
-        <button id="reset" style="margin-top:12px;font-size:12px;color:#888;background:none;border:1px solid #ddd;
-                border-radius:6px;padding:4px 10px">스탬프 초기화(테스트용)</button>
-        <script>
-        const k = "{STAMP_KEY}";
-        const items = {json.dumps(items, ensure_ascii=False)};
-        function draw() {{
-          let s = {{}};
-          try {{ s = JSON.parse(localStorage.getItem(k) || "{{}}"); }} catch (e) {{}}
-          const got = items.filter(t => s[t.id]).length;
-          document.getElementById("head").innerHTML =
-            "모은 스탬프 <b>" + got + "</b> / " + items.length +
-            (got >= 3 ? " &nbsp;🎉 3곳 이상! 제휴 상점 쿠폰 대상이에요" : "");
-          document.getElementById("grid").innerHTML = items.map(t => {{
-            const on = !!s[t.id];
-            const when = on ? new Date(s[t.id]).toLocaleDateString("ko-KR") : "미방문";
-            return `<div style="border:1px solid ${{on ? '#E5DCCB' : '#eee'}};border-radius:10px;padding:8px 4px;
-                     text-align:center;background:${{on ? '#FFFBF3' : '#fafafa'}}">
-                     ${{on ? t.on : t.off}}<div style="font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:${{on ? '#333' : '#aaa'}}">${{t.name}}</div>
-                     <div style="font-size:10px;color:#999">${{when}}</div></div>`;
-          }}).join("");
-        }}
-        document.getElementById("reset").onclick = () => {{ localStorage.removeItem(k); draw(); }};
-        draw();
-        </script>
-        """,
-        height=70 + rows * 100 + 50,
-    )
 
 
 # ---------------------------------------------------------------- 코스 정렬 (누를 때마다 ↑↓ 전환)
@@ -309,8 +260,8 @@ def sort_label(k: str) -> str:
 qr_id = st.query_params.get("temple")
 if qr_id and qr_id in T.index:
     row = T.loc[qr_id]
-    stamp_write(qr_id)                                     # 누르지 않아도 스탬프 자동 저장
-    st.success(f"📷 QR 방문 인증 완료! **{row['name']}** 스탬프를 받았어요.")
+    stamp_upload_section(row)                              # 인증 사진 올리기 → 도장 찍힌 스탬프
+    st.divider()
     render_temple_detail(row)
     st.divider()
     st.button("🏠 앱 홈으로", on_click=go_home, use_container_width=True)
@@ -449,12 +400,19 @@ elif view == VIEWS[1]:
                     st.button("코스 보기", key=f"open_{c['id']}", on_click=open_course,
                               args=(c["id"],), use_container_width=True)
 
-# ---------------------------------------------------------------- ③ 스탬프
+# ---------------------------------------------------------------- ③ 모두의 사진
+elif view == VIEWS[2]:
+    feed_view(temples)
+
+# ---------------------------------------------------------------- ④ 스탬프
 else:
-    st.caption("사찰에 붙은 QR을 폰 카메라로 찍으면 자동으로 스탬프가 찍혀요. (이 폰의 브라우저에 저장)")
-    stamp_board()
-    with st.expander("🔧 발표·테스트용: QR 없이 방문 인증 체험"):
-        pick = st.selectbox("사찰 선택", STAMP_TARGETS["name"].tolist())
+    stamp_board_view(STAMP_TARGETS)
+    st.divider()
+    with st.expander("🖨️ QR 안내판 만들기 (관리자용)"):
+        qr_maker(STAMP_TARGETS)
+    with st.expander("🔧 발표·테스트용: QR 찍은 것처럼 열기"):
+        names = STAMP_TARGETS["name"].tolist()
+        pick = st.selectbox("사찰 선택", names, index=names.index("불국사") if "불국사" in names else 0)
         pid = STAMP_TARGETS.loc[STAMP_TARGETS["name"] == pick, "id"].iloc[0]
         st.caption(f"실제 QR에는 이 주소가 들어가요 → `앱주소/?temple={pid}`")
         if st.button("QR 찍은 것처럼 열기", use_container_width=True):

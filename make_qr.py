@@ -21,13 +21,13 @@ if len(sys.argv) > 1:                            # python make_qr.py https://주
 
 HERE = Path(__file__).parent
 OUT = HERE / "qr"
-OUT.mkdir(exist_ok=True)
 
 # 한글 글꼴 찾기 (윈도우 / 맥 / 코랩(나눔) / 리눅스(Noto) 순서로 시도)
 FONT_CANDIDATES = [
     ("C:/Windows/Fonts/malgunbd.ttf", 0),
     ("/System/Library/Fonts/AppleSDGothicNeo.ttc", 0),
-    ("/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf", 0),   # 코랩: !apt -qq install fonts-nanum
+    ("/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf", 0),   # 코랩·Streamlit Cloud: fonts-nanum (packages.txt)
+    ("/usr/share/fonts/truetype/nanum/NanumGothic.ttf", 0),
     ("/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc", 1),     # index 1 = 한국어(KR)
 ]
 
@@ -40,8 +40,8 @@ def font(size):
     return ImageFont.load_default()
 
 
-def make_poster(row) -> Image.Image:
-    url = f"{BASE_URL}/?temple={row['id']}"
+def make_poster(row, base_url: str | None = None) -> Image.Image:
+    url = f"{(base_url or BASE_URL).rstrip('/')}/?temple={row['id']}"
     qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=20, border=2)
     qr.add_data(url)
     qr.make(fit=True)
@@ -55,7 +55,7 @@ def make_poster(row) -> Image.Image:
     d.text((W / 2, 235), row["name"].split(" · ")[0], font=font(72), fill="#2B2118", anchor="mm")
     d.text((W / 2, 315), row["hanja"].split(" · ")[0], font=font(38), fill="#8A7A66", anchor="mm")
     img.paste(qr_img, ((W - 760) // 2, 370))
-    d.text((W / 2, 1180), "폰 카메라로 찍으면 이야기와 스탬프가 열려요", font=font(38), fill="#2B2118", anchor="mm")
+    d.text((W / 2, 1180), "폰 카메라로 찍고 인증 사진을 올리면 스탬프!", font=font(38), fill="#2B2118", anchor="mm")
     d.text((W / 2, 1240), "Scan for the story (English included)", font=font(30), fill="#6B5B48", anchor="mm")
     d.text((W / 2, 1340), url, font=font(22), fill="#9A8D7C", anchor="mm")
     return img
@@ -64,6 +64,7 @@ def make_poster(row) -> Image.Image:
 if __name__ == "__main__":
     temples = pd.read_csv(HERE / "data" / "temples.csv").fillna("")
     targets = temples[temples["id"] != "campus"]
+    OUT.mkdir(exist_ok=True)
     for _, row in targets.iterrows():
         make_poster(row).save(OUT / f"{row['id']}.png")
     print(f"{len(targets)}개 QR 안내판 생성 → {OUT}  (주소: {BASE_URL})")
