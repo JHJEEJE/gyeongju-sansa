@@ -152,6 +152,33 @@ class SupabaseStore:
 
 
 @st.cache_resource
+def _json_lock():
+    return threading.Lock()
+
+
+def load_json(file: str, default):
+    """사진 말고 기록(JSON)도 같은 저장 장소에 둬요. 예) '안 갈래요' 이유 모음."""
+    try:
+        raw = get_store().get_image(file)
+        return json.loads(raw.decode("utf-8")) if raw else default
+    except Exception:
+        return default
+
+
+def append_json(file: str, rec: dict):
+    """JSON 목록 파일에 기록 하나 추가."""
+    with _json_lock():
+        recs = load_json(file, [])
+        recs.append(rec)
+        data = json.dumps(recs, ensure_ascii=False).encode("utf-8")
+        store = get_store()
+        if isinstance(store, SupabaseStore):
+            store._put(file, data, "application/json")
+        else:
+            store.put_image(file, data)
+
+
+@st.cache_resource
 def get_store():
     try:
         url, key = st.secrets.get("SUPABASE_URL"), st.secrets.get("SUPABASE_KEY")

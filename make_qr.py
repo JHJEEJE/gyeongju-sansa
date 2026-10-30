@@ -55,14 +55,15 @@ def make_poster(row, base_url: str | None = None) -> Image.Image:
     d.text((W / 2, 235), row["name"].split(" · ")[0], font=font(72), fill="#2B2118", anchor="mm")
     d.text((W / 2, 315), row["hanja"].split(" · ")[0], font=font(38), fill="#8A7A66", anchor="mm")
     img.paste(qr_img, ((W - 760) // 2, 370))
-    d.text((W / 2, 1180), "폰 카메라로 찍고 인증 사진을 올리면 스탬프!", font=font(38), fill="#2B2118", anchor="mm")
-    d.text((W / 2, 1240), "Scan for the story (English included)", font=font(30), fill="#6B5B48", anchor="mm")
+    d.text((W / 2, 1180), "폰 카메라로 찍으면 여기서 걷는 순례길이 시작돼요", font=font(38), fill="#2B2118", anchor="mm")
+    d.text((W / 2, 1240), "Scan to start a walking pilgrimage from here", font=font(30), fill="#6B5B48", anchor="mm")
     d.text((W / 2, 1340), url, font=font(22), fill="#9A8D7C", anchor="mm")
     return img
 
 
 if __name__ == "__main__":
-    temples = pd.read_csv(HERE / "data" / "temples.csv").fillna("")
+    csv = HERE / "data" / "temples.csv"
+    temples = pd.read_csv(csv if csv.exists() else HERE / "temples.csv").fillna("")
     targets = temples[temples["id"] != "campus"]
     OUT.mkdir(exist_ok=True)
     for _, row in targets.iterrows():
