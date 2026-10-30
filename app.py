@@ -2,12 +2,14 @@
 
 실행:  streamlit run app.py
 화면 구성 (터치 3번 이내 원칙)
+  ⓪ 다음 한 곳 : 동행 · 남은 시간 · 이동수단만 고르면 지금 갈 수 있는 다음 사찰 1~2곳 + 이유 + 이어지는 이야기
+                 (ai_guide.py — '이번엔 안 갈래요' 이유도 모아서 왜 안 가는지 확인)
   ① 사찰 지도  : 그림 핀을 누르면(1번) 바로 아래에 사진 + 사찰 이야기
   ② 순례 코스  : 코스 탭(1) → '코스 보기'(2) → 실제 도보 경로 지도 + 사진 타임라인
   ③ 사진      : 이용자들이 올린 사찰 사진을 모두가 같이 봐요
   ④ 스탬프    : 닉네임으로 내 스탬프 모아 보기 (인증 사진 위에 빨간 도장)
   QR 방문     : 사찰에 붙인 QR을 폰 카메라로 찍으면 ?temple=사찰ID 로 열리고,
-                그 자리에서 사진을 올리면 스탬프가 돼요.
+                그 자리에서 사진을 올리면 스탬프가 되고, 바로 아래에 '여기서 다음 한 곳'이 나와요.
 모바일: 한 손가락으로는 화면이 스크롤되고, 지도는 두 손가락으로 움직여요.
 """
 import json
@@ -15,6 +17,7 @@ import json
 import streamlit as st
 from streamlit_folium import st_folium
 
+from ai_guide import feedback_dashboard, next_place_view
 from community import (
     feed_view, inject_css, qr_maker, stamp_board_view, stamp_upload_section, user_hero_uri, visitor_photos,
 )
@@ -98,12 +101,12 @@ ALL_IMAGES = tuple(temples["image_url"].tolist()
 with st.spinner("사진 불러오는 중…"):
     THUMB = thumbs(ALL_IMAGES, 240)
 
-VIEWS = ["🗺️ 지도", "🚶 코스", "📸 사진", "📿 스탬프"]
+VIEWS = ["✨ 다음 한 곳", "🗺️ 지도", "🚶 코스", "📸 사진", "📿 스탬프"]
 
 
 # ---------------------------------------------------------------- 화면 이동 함수
 def open_course(course_id: str):
-    st.session_state["view"] = VIEWS[1]
+    st.session_state["view"] = VIEWS[2]
     st.session_state["selected_course"] = course_id
     st.query_params.clear()
 
@@ -260,8 +263,16 @@ def sort_label(k: str) -> str:
 qr_id = st.query_params.get("temple")
 if qr_id and qr_id in T.index:
     row = T.loc[qr_id]
+    visited = st.session_state.setdefault("visited", [])
+    if qr_id not in visited:                               # 이미 간 곳은 다음 추천에서 빼기
+        visited.append(qr_id)
     stamp_upload_section(row)                              # 인증 사진 올리기 → 도장 찍힌 스탬프
     st.divider()
+    st.markdown(f"### ✨ {short_name(row)}에서 다음 한 곳")
+    st.caption("누구랑 왔는지, 시간이 얼마나 남았는지만 알려 주면 지금 갈 수 있는 곳을 골라 줄게요.")
+    next_place_view(temples, courses, THUMB, current_id=qr_id, key="qr")
+    st.divider()
+    st.markdown(f"### 📖 {short_name(row)} 이야기")
     render_temple_detail(row)
     st.divider()
     st.button("🏠 앱 홈으로", on_click=go_home, use_container_width=True)
@@ -269,14 +280,19 @@ if qr_id and qr_id in T.index:
 
 # ================================================================ 메인 화면
 st.markdown("## 🪷 경주 산사 순례길")
-st.caption("동국대 WISE캠퍼스에서 걸어가는 신라 불교 이야기")
+st.caption("수학여행 코스 말고, 지금 나에게 맞는 경주 사찰 한 곳")
 
 if "view" not in ss:
     ss["view"] = VIEWS[0]
 view = st.segmented_control("메뉴", VIEWS, key="view", label_visibility="collapsed") or VIEWS[0]
 
-# ---------------------------------------------------------------- ① 사찰 지도
+# ---------------------------------------------------------------- ⓪ 다음 한 곳
 if view == VIEWS[0]:
+    st.caption("사찰 QR을 찍으면 그 자리에서 바로 열려요. 여기서는 지금 있는 곳을 직접 골라 보세요.")
+    next_place_view(temples, courses, THUMB, key="home")
+
+# ---------------------------------------------------------------- ① 사찰 지도
+elif view == VIEWS[1]:
     st.caption("핀을 누르면 아래에 사진과 이야기가 나와요 · 지도는 두 손가락으로 움직여요")
     out = st_folium(
         build_overview_map(temples, THUMB), height=400, use_container_width=True,
@@ -292,7 +308,7 @@ if view == VIEWS[0]:
         st.info("👆 지도에서 궁금한 사찰 핀을 눌러 보세요. 점선 원은 캠퍼스에서 직선 1.5km / 3km 거리예요.")
 
 # ---------------------------------------------------------------- ② 순례 코스
-elif view == VIEWS[1]:
+elif view == VIEWS[2]:
     sel = ss.get("selected_course")
 
     if sel:  # ---- 코스 상세: 실제 도보 경로 지도 + 사진 타임라인
@@ -401,13 +417,15 @@ elif view == VIEWS[1]:
                               args=(c["id"],), use_container_width=True)
 
 # ---------------------------------------------------------------- ③ 모두의 사진
-elif view == VIEWS[2]:
+elif view == VIEWS[3]:
     feed_view(temples)
 
 # ---------------------------------------------------------------- ④ 스탬프
 else:
     stamp_board_view(STAMP_TARGETS)
     st.divider()
+    with st.expander("📊 '안 갈래요' 이유 모아 보기 (관리자용)"):
+        feedback_dashboard(temples)
     with st.expander("🖨️ QR 안내판 만들기 (관리자용)"):
         qr_maker(STAMP_TARGETS)
     with st.expander("🔧 발표·테스트용: QR 찍은 것처럼 열기"):
