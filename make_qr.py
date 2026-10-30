@@ -51,7 +51,7 @@ def make_poster(row, base_url: str | None = None) -> Image.Image:
     img = Image.new("RGB", (W, H), "#FAF6EC")
     d = ImageDraw.Draw(img)
     d.rectangle([0, 0, W, 150], fill="#7A2E22")
-    d.text((W / 2, 75), "경주 산사 순례길", font=font(58), fill="white", anchor="mm")
+    d.text((W / 2, 75), "한 절 더", font=font(58), fill="white", anchor="mm")
     d.text((W / 2, 235), row["name"].split(" · ")[0], font=font(72), fill="#2B2118", anchor="mm")
     d.text((W / 2, 315), row["hanja"].split(" · ")[0], font=font(38), fill="#8A7A66", anchor="mm")
     img.paste(qr_img, ((W - 760) // 2, 370))

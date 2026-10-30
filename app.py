@@ -1,4 +1,4 @@
-"""경주 산사 순례길 — 앱 프로토타입 (Streamlit + folium)
+"""한 절 더 — AI가 함께 걷는 경주 사찰 순례길 (Streamlit + folium)
 
 실행:  streamlit run app.py
 화면 구성 (터치 3번 이내 원칙)
@@ -28,7 +28,7 @@ from utils import (
     map_links, photo_html, pin_svg, thumbs, walk_minutes,
 )
 
-st.set_page_config(page_title="경주 산사 순례길", page_icon="🪷", layout="centered")
+st.set_page_config(page_title="한 절 더", page_icon="🪷", layout="centered")
 
 st.markdown(
     """
@@ -283,7 +283,7 @@ if qr_id and qr_id in T.index:
     st.stop()
 
 # ================================================================ 메인 화면
-st.markdown("## 🪷 경주 산사 순례길")
+st.markdown("## 🪷 한 절 더")
 st.caption("차로 점 찍는 경주 말고, 걸어서 잇는 경주 · AI가 함께 걷는 순례길")
 
 if "view" not in ss:
